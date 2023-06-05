@@ -20,12 +20,19 @@ import cloudinary.api
 
 import openai 
 
+import hashlib
+import jwt
+import requests
+
 cloudinary.config(
 cloud_name = os.getenv("CLOUDINARY_NAME"),
 api_key = os.getenv("CLOUDINARY_KEY"),
 api_secret = os.getenv("CLOUDINARY_SECRET"),
 api_proxy = "http://proxy.server:9999"
 )
+
+ACCESS_KEY = os.getenv('ACCESS_KEY')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 openai.api_key = os.environ.get('OPENAI_API_KEY')
 
@@ -159,6 +166,36 @@ def open_ai():
         "message":completation.choices[0].text
     }
     return jsonify(response), 200
+
+@api.route('/corporatetools/documents', methods=['GET'])
+def get_companies():
+    path = "/documents"
+    body = ""
+    
+    headers = {"access_key": ACCESS_KEY}
+    payload = {
+        "path": path,
+        "content": hashlib.sha256(body.encode('ascii')).hexdigest()
+    }
+
+    token = jwt.encode(payload, SECRET_KEY, algorithm='HS256', headers=headers)
+
+    try:
+        url = "https://api.corporatetools.com/documents?status=read"
+        headers = {"Authorization": f'Bearer {token}', "Content-Type": "application/json"}
+        r = requests.get(url, headers=headers, data=body)
+
+        if r.status_code != 200:
+            print(f"Error: got status code {r.status_code} with content: {r.content}")
+            return jsonify({"error": f"Got status code {r.status_code}"}), 401
+        else:
+            return jsonify(r.json())
+    except Exception as e:
+        print(f"Error: {e}")
+        raise e
+
+
+
 
 # MPT-7b : 64k tokens, ggml, q4_0, 128bits 4Q 
 # Oobaboonga, Koboldcpp
